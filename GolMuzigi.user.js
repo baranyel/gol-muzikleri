@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Haxball Oda Eklentisi (gol müziği + özel vuruşlar)
-// @version      2
+// @version      3
 // @description  "GOL!" duyurusunda müzik çalar; Q / E / Shift tuşlarını odaya bildirir (falso, powershot)
 // @match        https://*.haxball.com/*
 // @grant        none
@@ -8,6 +8,29 @@
 // ==/UserScript==
 
 (function () {
+  // ---------- Yüklendi mi? ----------
+  // Script çalışıyorsa her Haxball sayfasında/çerçevesinde köşede 6 saniyelik yeşil bir rozet görünür
+  // ve konsola (F12) bir satır yazılır. Hiçbiri yoksa Tampermonkey bu sayfada scripti çalıştırmıyordur.
+  const ETIKET = "[Haxball Eklentisi]";
+  const cerceve = window === window.top ? "sayfa" : "oyun çerçevesi";
+  console.log(ETIKET, "yüklendi:", cerceve, location.href);
+  const rozet = document.createElement("div");
+  rozet.textContent = "Eklenti yüklü (" + cerceve + ")";
+  rozet.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:2147483647;padding:4px 8px;background:#1b5e20;color:#fff;font:12px sans-serif;border-radius:4px;pointer-events:none";
+  document.documentElement.appendChild(rozet);
+  setTimeout(() => rozet.remove(), 6000);
+
+  // Oyun sohbetine gri bir uyarı satırı ekler (örn. müzik çalınamadıysa nedeni)
+  function bildir(metin) {
+    console.warn(ETIKET, metin);
+    const log = document.querySelector('[data-hook="log-contents"]');
+    if (!log) return;
+    const p = document.createElement("p");
+    p.className = "notice";
+    p.textContent = "[Eklenti] " + metin;
+    log.appendChild(p);
+  }
+
   // ---------- Gol müziği ----------
   // Script.txt içindeki CONFIG.golMuzikleri ile aynı sırada olmalı.
   const MUZIKLER = [
@@ -36,9 +59,13 @@
       if (audio) audio.pause();
       audio = new Audio(MUZIKLER[parca]);
       audio.volume = ses;
+      audio.onerror = () => bildir("Müzik dosyası yüklenemedi: " + MUZIKLER[parca]);
+      console.log(ETIKET, "gol müziği:", parca, "ses", ses);
       const p = audio.play();
-      if (p && p.catch) p.catch(() => {});
-    } catch (e) {}
+      if (p && p.catch) p.catch((e) => bildir("Müzik çalınamadı (" + (e && e.name) + "). Sayfaya bir kere tıkla ve tekrar dene."));
+    } catch (e) {
+      bildir("Müzik hatası: " + e);
+    }
   }
 
   function kontrol(node) {
@@ -90,9 +117,6 @@
     const log = document.querySelector('[data-hook="log-contents"]');
     if (!log) return;
     clearInterval(bildirim);
-    const p = document.createElement("p");
-    p.className = "notice";
-    p.textContent = "[Eklenti aktif] Gol müziği ve Q / E / Shift özel vuruşları hazır.";
-    log.appendChild(p);
+    bildir("aktif. Gol müziği ve Q / E / Shift özel vuruşları hazır.");
   }, 500);
 })();
