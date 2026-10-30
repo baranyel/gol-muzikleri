@@ -1,5 +1,6 @@
 // ==UserScript==
 // @name         Haxball Oda Eklentisi (gol müziği + özel vuruşlar)
+// @version      2
 // @description  "GOL!" duyurusunda müzik çalar; Q / E / Shift tuşlarını odaya bildirir (falso, powershot)
 // @match        https://*.haxball.com/*
 // @grant        none
@@ -56,45 +57,42 @@
 
   // ---------- Özel vuruş tuşları ----------
   // Q = falso yukarı, E = falso aşağı, Shift = powershot.
-  // Vuruşun kendisini Haxball yapar: Ayarlar > Kontroller'de Q, E ve Shift'i
-  // "Vuruş" tuşlarına ekle. Bu script sadece odaya "şu tuş basılı" bilgisini yollar.
+  // Tuşa basılınca odaya TEK mesaj gider ("!tus q"); oda bir sonraki vuruşu özel yapar.
+  // Haxball istemcisi sohbeti saniyede ~1 mesajla sınırladığı için basma/bırakma mesajı yok.
+  // Vuruşun kendisini Haxball yapar. Shift zaten vuruş tuşu; Q/E'yi de vuruş tuşu yapmak istersen
+  // Ayarlar > Kontroller'den ekle, yoksa Q/E'ye bas, sonra Space/X ile vur.
   const TUSLAR = { KeyQ: "q", KeyE: "e", ShiftLeft: "s", ShiftRight: "s" };
-  const basili = {};
 
   // Haxball'ın sohbet kutusuna "Enter'a basılmış gibi" mesaj yazar. Oda bu "!tus ..." mesajlarını gizler.
   function sohbeteGonder(metin) {
-    const input = document.querySelector('input[data-hook="input"]');
-    if (!input) return;
+    const input = document.querySelector('.chatbox-view input[data-hook="input"]');
+    if (!input) return false;
     const eski = input.value;
     input.value = metin;
     const ev = new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: false, cancelable: true });
     Object.defineProperty(ev, "keyCode", { get: () => 13 });
     Object.defineProperty(ev, "which", { get: () => 13 });
-    input.dispatchEvent(ev);
+    input.dispatchEvent(ev); // Haxball mesajı gönderir, kutuyu temizler ve odağı bırakır
     input.value = eski;
-    if (document.activeElement === input) input.blur(); // oyun tuşları sohbet kutusuna takılmasın
-  }
-
-  function tusBildir(kod, durum) {
-    const harf = TUSLAR[kod];
-    if (!harf) return;
-    if (!!basili[kod] === durum) return;
-    basili[kod] = durum;
-    sohbeteGonder("!tus " + harf + " " + (durum ? 1 : 0));
+    return true;
   }
 
   window.addEventListener("keydown", (e) => {
-    if (e.repeat || !TUSLAR[e.code]) return;
+    const harf = TUSLAR[e.code];
+    if (!harf || e.repeat) return;
     if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return; // sohbet yazarken sayma
-    tusBildir(e.code, true);
+    sohbeteGonder("!tus " + harf);
   }, true);
 
-  window.addEventListener("keyup", (e) => {
-    if (TUSLAR[e.code]) tusBildir(e.code, false);
-  }, true);
-
-  // Sekme/pencere odağı kaybolursa keyup gelmez; basılı tuşları bırak
-  window.addEventListener("blur", () => {
-    Object.keys(basili).forEach((kod) => { if (basili[kod]) tusBildir(kod, false); });
-  });
+  // ---------- Çalıştığını göster ----------
+  // Oyun ekranının sohbetine bir kere "eklenti aktif" yazar. Görmüyorsan script bu sayfada çalışmıyordur.
+  const bildirim = setInterval(() => {
+    const log = document.querySelector('[data-hook="log-contents"]');
+    if (!log) return;
+    clearInterval(bildirim);
+    const p = document.createElement("p");
+    p.className = "notice";
+    p.textContent = "[Eklenti aktif] Gol müziği ve Q / E / Shift özel vuruşları hazır.";
+    log.appendChild(p);
+  }, 500);
 })();
